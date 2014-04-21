@@ -9,6 +9,8 @@ __all__ = ["EAPAuth"]
 
 import socket
 import os, sys, pwd
+import binascii
+import hashlib
 from subprocess import call
 
 from colorama import Fore, Style, init
@@ -60,7 +62,7 @@ class EAPAuth:
                     get_EAP(EAP_RESPONSE,
                         packet_id,
                         EAP_TYPE_ID,
-                        self.version_info + self.login_info['username'])))
+                        self.login_info['username'])))
 
     def send_response_md5(self, packet_id, md5data):
         md5 = self.login_info['password'][0:16]
@@ -76,6 +78,22 @@ class EAPAuth:
         except socket.error, msg:
             print "Connection error!"
             exit(-1)
+    def chap_response_md5(self, Scret, packet_id, Challenge):
+        chap_id = "\x02"
+        #cg = binascii.unhexlify(Challenge)
+        cg = Challenge
+        bs = "".join(chap_id+Scret+cg)
+        m0 = hashlib.md5()
+        m0.update(bs)
+        chap = m0.digest()
+        resp = chr(len(chap)) + chap + self.login_info['username']
+        eap_packet = self.ethernet_header + get_EAPOL(EAPOL_EAPPACKET, get_EAP(EAP_RESPONSE, packet_id, EAP_TYPE_MD5, resp))
+        try:
+            self.client.send(eap_packet)
+        except socket.error, msg:
+            print "Connection error!"
+            exit(-1)
+
 
     def send_response_h3c(self, packet_id):
         resp = chr(len(self.login_info['password'])) + self.login_info['password'] + self.login_info['username']
@@ -141,7 +159,8 @@ class EAPAuth:
                 data_len = unpack("!B", reqdata[0:1])[0]
                 md5data = reqdata[1:1 + data_len]
                 display_prompt(Fore.YELLOW, 'Got EAP Request for MD5-Challenge')
-                self.send_response_md5(id, md5data)
+                #self.send_response_md5(id, md5data)
+                self.chap_response_md5(self.login_info['password'],id, md5data)
                 display_prompt(Fore.GREEN, 'Sending EAP response with password')
             else:
                 display_prompt(Fore.YELLOW, 'Got unknown Request type (%i)' % reqtype)
