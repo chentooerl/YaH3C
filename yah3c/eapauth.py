@@ -79,7 +79,7 @@ class EAPAuth:
             print "Connection error!"
             exit(-1)
     def chap_response_md5(self, Scret, packet_id, Challenge):
-        chap_id = "\x02"
+        chap_id = chr(packet_id)
         #cg = binascii.unhexlify(Challenge)
         cg = Challenge
         bs = "".join(chap_id+Scret+cg)
